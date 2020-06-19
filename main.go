@@ -33,6 +33,10 @@ const (
 				id
 				name
 			  }
+			  state {
+				id
+				name
+			  }
 			}
 		  }
 		}
@@ -57,13 +61,14 @@ type Team struct {
 }
 
 type Issues struct {
-	Nodes []Node `json:"nodes"`
+	Nodes []IssueNode `json:"nodes"`
 }
 
-type Node struct {
+type IssueNode struct {
 	ID       string   `json:"id"`
 	Title    string   `json:"title"`
 	Assignee Assignee `json:"assignee"`
+	State    State    `json:"state"`
 }
 
 type Assignee struct {
@@ -71,15 +76,21 @@ type Assignee struct {
 	Name string `json:"name"`
 }
 
+type State struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 func main() {
 	query := fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678")
-	var teamIssuesResponse TeamIssuesResponse
-	if err := exectueQuery(query, &teamIssuesResponse); err != nil {
+
+	var response TeamIssuesResponse
+	if err := exectueQuery(query, &response); err != nil {
 		log.Fatal(err)
 	}
 
-	for _, i := range teamIssuesResponse.Team.Issues.Nodes {
-		fmt.Printf("Issue %+v\n", i)
+	for _, v := range response.Team.Issues.Nodes {
+		fmt.Printf("Issue: +%v\n", v)
 	}
 }
 
