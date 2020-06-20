@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/machinebox/graphql"
+	"github.com/rickar/cal/v2"
+	"github.com/rickar/cal/v2/us"
 )
 
 const (
@@ -30,6 +32,7 @@ const (
 			edges {
 				node {
 					id
+					number
 					createdAt
 					title
 					assignee {
@@ -98,6 +101,7 @@ type PageInfo struct {
 
 type IssueNode struct {
 	ID           string       `json:"id"`
+	Number       int          `json:"number"`
 	CreatedAt    time.Time    `json:"createdAt"`
 	Title        string       `json:"title"`
 	Assignee     Assignee     `json:"assignee"`
@@ -132,6 +136,12 @@ type WorkflowState struct {
 func main() {
 	pagination := "first:50"
 	var totalIssues int
+
+	loc, err := time.LoadLocation("America/Denver")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for true {
 		query := fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678", pagination)
 
@@ -141,8 +151,9 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
-			if exceedsSLA(&v.IssueNode) {
-				// TODO
+			exceeds, durationExceeding := exceedsSLA(&v.IssueNode, loc)
+			if exceeds {
+				fmt.Printf("Exceeds SLA: %+v, Ticket: %d, State: %s\n", durationExceeding, v.IssueNode.Number, v.IssueNode.State.Name)
 			}
 			totalIssues++
 		}
@@ -180,17 +191,31 @@ func exectueQuery(query string, response interface{}) error {
 	return nil
 }
 
-func exceedsSLA(issue *IssueNode) bool {
-	if issue.State.Name == "Ready for Review" {
-		fmt.Printf("Issue: %+v\n", issue)
-		timeEnteredCurrentState := getTimeIssueEnteredCurrentState(issue)
-		fmt.Printf("ENTERED CURRENT STATE: %+v\n", timeEnteredCurrentState)
+func exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
 
-		durationInCurrentState := time.Now().UTC().Sub(timeEnteredCurrentState)
-		fmt.Printf("DURATION: %+v\n", durationInCurrentState)
+	if issue.State.Name == "Ready for Review" {
+		return exceedsSLAInBusinessHours(issue, loc, 8)
+	} else if issue.State.Name == "In Progress" {
+		return exceedsSLAInBusinessHours(issue, loc, 16)
 	}
 
-	return false
+	return false, time.Hour
+}
+
+func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, slaBusinessHours int) (bool, time.Duration) {
+	timeEnteredCurrentState := getTimeIssueEnteredCurrentState(issue)
+	start := timeEnteredCurrentState.In(loc)
+	end := time.Now().In(loc)
+	durationInCurrentStateBusinessHours := businessDurationBetweenTimes(start, end)
+
+	slaDuration := time.Hour * time.Duration(slaBusinessHours)
+	if durationInCurrentStateBusinessHours > slaDuration {
+		// determine how much the SLA is exceeded
+		exceedsSLABySeconds := durationInCurrentStateBusinessHours.Seconds() - slaDuration.Seconds()
+		return true, (time.Second * time.Duration(exceedsSLABySeconds))
+	}
+
+	return false, time.Hour
 }
 
 func getTimeIssueEnteredCurrentState(issue *IssueNode) time.Time {
@@ -206,4 +231,20 @@ func getTimeIssueEnteredCurrentState(issue *IssueNode) time.Time {
 	}
 
 	return timeEnteredState
+}
+
+func businessDurationBetweenTimes(start, end time.Time) time.Duration {
+	c := cal.NewBusinessCalendar()
+
+	// add holidays that the business observes
+	c.AddHoliday(
+		us.NewYear,
+		us.MemorialDay,
+		us.IndependenceDay,
+		us.LaborDay,
+		us.ThanksgivingDay,
+		us.ChristmasDay,
+	)
+
+	return c.WorkHoursInRange(start, end)
 }

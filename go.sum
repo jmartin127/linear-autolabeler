@@ -4,3 +4,6 @@ github.com/machinebox/graphql v0.2.2 h1:dWKpJligYKhYKO5A2gvNhkJdQMNZeChZYyBbrZkB
 github.com/machinebox/graphql v0.2.2/go.mod h1:F+kbVMHuwrQ5tYgU9JXlnskM8nOaFxCAEolaQybkjWA=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/rickar/cal v1.0.5 h1:ccTH7okdpqbT+X7hlWgQM4Hv3rTvpV8Stu7enQx7ywY=
+github.com/rickar/cal/v2 v2.0.0-beta.2 h1:H1KVaXNrddB6wt2AQ4YZXk41Xqzc8FTJuQ49aRcrfC4=
+github.com/rickar/cal/v2 v2.0.0-beta.2/go.mod h1:/fdlMcx7GjPlIBibMzOM9gMvDBsrK+mOtRXdTzUqV/A=
