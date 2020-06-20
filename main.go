@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/machinebox/graphql"
 )
@@ -29,6 +30,7 @@ const (
 			edges {
 				node {
 					id
+					createdAt
 					title
 					assignee {
 						id
@@ -37,6 +39,17 @@ const (
 					state {
 						id
 						name
+					}
+					history {
+						nodes {
+							createdAt
+							fromState {
+								name
+							}
+							toState {
+								name
+							}
+						}
 					}
 				}
 				cursor
@@ -84,10 +97,12 @@ type PageInfo struct {
 }
 
 type IssueNode struct {
-	ID       string   `json:"id"`
-	Title    string   `json:"title"`
-	Assignee Assignee `json:"assignee"`
-	State    State    `json:"state"`
+	ID           string       `json:"id"`
+	CreatedAt    time.Time    `json:"createdAt"`
+	Title        string       `json:"title"`
+	Assignee     Assignee     `json:"assignee"`
+	State        State        `json:"state"`
+	IssueHistory IssueHistory `json:"history"`
 }
 
 type Assignee struct {
@@ -97,6 +112,20 @@ type Assignee struct {
 
 type State struct {
 	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type IssueHistory struct {
+	Nodes []IssueHistoryNode `json:"nodes"`
+}
+
+type IssueHistoryNode struct {
+	CreatedAt time.Time     `json:"createdAt"`
+	FromState WorkflowState `json:"fromState"`
+	ToState   WorkflowState `json:"toState"`
+}
+
+type WorkflowState struct {
 	Name string `json:"name"`
 }
 
@@ -112,7 +141,9 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
-			fmt.Printf("Issue: %+v\n", v)
+			if exceedsSLA(&v.IssueNode) {
+				// TODO
+			}
 			totalIssues++
 		}
 
@@ -147,4 +178,32 @@ func exectueQuery(query string, response interface{}) error {
 	}
 
 	return nil
+}
+
+func exceedsSLA(issue *IssueNode) bool {
+	if issue.State.Name == "Ready for Review" {
+		fmt.Printf("Issue: %+v\n", issue)
+		timeEnteredCurrentState := getTimeIssueEnteredCurrentState(issue)
+		fmt.Printf("ENTERED CURRENT STATE: %+v\n", timeEnteredCurrentState)
+
+		durationInCurrentState := time.Now().UTC().Sub(timeEnteredCurrentState)
+		fmt.Printf("DURATION: %+v\n", durationInCurrentState)
+	}
+
+	return false
+}
+
+func getTimeIssueEnteredCurrentState(issue *IssueNode) time.Time {
+	// It is possible that the issue was created within this state, and has never moved to another state
+	timeEnteredState := issue.CreatedAt
+
+	for _, history := range issue.IssueHistory.Nodes {
+		if history.ToState.Name == issue.State.Name {
+			if history.CreatedAt.After(timeEnteredState) {
+				timeEnteredState = history.CreatedAt
+			}
+		}
+	}
+
+	return timeEnteredState
 }
