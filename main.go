@@ -25,18 +25,25 @@ const (
 		  id
 		  name
 	  
-		  issues {
-			nodes {
-			  id
-			  title
-			  assignee {
-				id
-				name
-			  }
-			  state {
-				id
-				name
-			  }
+		  issues(%s) {
+			edges {
+				node {
+					id
+					title
+					assignee {
+						id
+						name
+					}
+					state {
+						id
+						name
+					}
+				}
+				cursor
+			}
+			pageInfo {
+				hasNextPage
+				endCursor
 			}
 		  }
 		}
@@ -61,7 +68,19 @@ type Team struct {
 }
 
 type Issues struct {
-	Nodes []IssueNode `json:"nodes"`
+	TotalCount int      `json:"totalCount"`
+	Edges      []Edge   `json:"edges"`
+	PageInfo   PageInfo `json:"pageInfo"`
+}
+
+type Edge struct {
+	IssueNode IssueNode `json:"node"`
+	Cursor    string    `json:"cursor"`
+}
+
+type PageInfo struct {
+	HasNextPage bool   `json:"hasNextPage`
+	EndCursor   string `json:"endCursor"`
 }
 
 type IssueNode struct {
@@ -82,16 +101,37 @@ type State struct {
 }
 
 func main() {
-	query := fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678")
+	pagination := "first:50"
+	var totalIssues int
+	for true {
+		query := fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678", pagination)
 
-	var response TeamIssuesResponse
-	if err := exectueQuery(query, &response); err != nil {
-		log.Fatal(err)
+		var response TeamIssuesResponse
+		if err := exectueQuery(query, &response); err != nil {
+			log.Fatal(err)
+		}
+
+		for _, v := range response.Team.Issues.Edges {
+			fmt.Printf("Issue: %+v\n", v)
+			totalIssues++
+		}
+
+		pagination = fmt.Sprintf(`first:50 after:"%s"`, response.Team.Issues.PageInfo.EndCursor)
+		query = fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678", pagination)
+
+		if response.Team.Issues.PageInfo.HasNextPage == false {
+			break
+		}
 	}
 
-	for _, v := range response.Team.Issues.Nodes {
-		fmt.Printf("Issue: +%v\n", v)
-	}
+	fmt.Printf("Total issues: %d\n", totalIssues)
+
+	// var response interface{}
+	// if err := exectueQuery(query, &response); err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Printf("INterface: %+v\n", response)
+
 }
 
 func exectueQuery(query string, response interface{}) error {
