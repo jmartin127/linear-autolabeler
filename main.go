@@ -184,8 +184,6 @@ func main() {
 		token: authToken,
 	}
 
-	lc.getIssueComments("ISC-105")
-
 	pagination := "first:50"
 	var totalIssues int
 
@@ -203,7 +201,7 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
-			exceeds, durationExceeding := exceedsSLA(&v.IssueNode, loc)
+			exceeds, durationExceeding := lc.exceedsSLA(&v.IssueNode, loc)
 			if exceeds {
 				lastComment, err := lc.getLastTimeIssueWasCommentedOn(&v.IssueNode)
 				if err != nil {
@@ -247,7 +245,7 @@ func (lc *LinearClient) exectueQuery(query string, response interface{}) error {
 	return nil
 }
 
-func exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
+func (lc *LinearClient) exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
 
 	if issue.State.Name == "Ready for Review" {
 		return exceedsSLAInBusinessHours(issue, loc, "Ready for Review", 8)
@@ -256,7 +254,19 @@ func exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
 	} else if issue.State.Name == "In Progress" {
 		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
 	} else if issue.State.Name == "Additional Info Required" {
-		return exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", 16)
+		exceedsSLA, _ := exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", 16)
+		if exceedsSLA {
+			lastCommentTime, err := lc.getLastTimeIssueWasCommentedOn(issue)
+			if err != nil {
+				log.Fatal(err) // TODO
+			}
+			exceedsSLAForCommentToBeAdded, timeOverdueForComment := exceedsSLAInBusinessHoursForStart(lastCommentTime, loc, 16)
+			if exceedsSLAForCommentToBeAdded {
+				return exceedsSLAForCommentToBeAdded, timeOverdueForComment
+			}
+			return false, time.Hour
+		}
+		return false, time.Hour
 	}
 
 	return false, time.Hour
@@ -264,7 +274,11 @@ func exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
 
 func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, refState string, slaBusinessHours int) (bool, time.Duration) {
 	timeEnteredCurrentState := getLastTimeIssueEnteredState(issue, refState)
-	start := timeEnteredCurrentState.In(loc)
+	return exceedsSLAInBusinessHoursForStart(timeEnteredCurrentState, loc, slaBusinessHours)
+}
+
+func exceedsSLAInBusinessHoursForStart(refTime time.Time, loc *time.Location, slaBusinessHours int) (bool, time.Duration) {
+	start := refTime.In(loc)
 	end := time.Now().In(loc)
 	durationInCurrentStateBusinessHours := businessDurationBetweenTimes(start, end)
 
