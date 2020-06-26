@@ -194,16 +194,20 @@ func exectueQuery(query string, response interface{}) error {
 func exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
 
 	if issue.State.Name == "Ready for Review" {
-		return exceedsSLAInBusinessHours(issue, loc, 8)
+		return exceedsSLAInBusinessHours(issue, loc, "Ready for Review", 8)
+	} else if issue.State.Name == "Accepted" {
+		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
 	} else if issue.State.Name == "In Progress" {
-		return exceedsSLAInBusinessHours(issue, loc, 16)
+		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
+	} else if issue.State.Name == "Additional Info Required" {
+		return exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", 16)
 	}
 
 	return false, time.Hour
 }
 
-func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, slaBusinessHours int) (bool, time.Duration) {
-	timeEnteredCurrentState := getTimeIssueEnteredCurrentState(issue)
+func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, refState string, slaBusinessHours int) (bool, time.Duration) {
+	timeEnteredCurrentState := getLastTimeIssueEnteredState(issue, refState)
 	start := timeEnteredCurrentState.In(loc)
 	end := time.Now().In(loc)
 	durationInCurrentStateBusinessHours := businessDurationBetweenTimes(start, end)
@@ -219,11 +223,15 @@ func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, slaBusiness
 }
 
 func getTimeIssueEnteredCurrentState(issue *IssueNode) time.Time {
+	return getLastTimeIssueEnteredState(issue, issue.State.Name)
+}
+
+func getLastTimeIssueEnteredState(issue *IssueNode, state string) time.Time {
 	// It is possible that the issue was created within this state, and has never moved to another state
 	timeEnteredState := issue.CreatedAt
 
 	for _, history := range issue.IssueHistory.Nodes {
-		if history.ToState.Name == issue.State.Name {
+		if history.ToState.Name == state {
 			if history.CreatedAt.After(timeEnteredState) {
 				timeEnteredState = history.CreatedAt
 			}
