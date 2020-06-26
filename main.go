@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/machinebox/graphql"
@@ -12,7 +13,6 @@ import (
 )
 
 const (
-	authToken  = ""
 	teamsQuery = `
 	{
 		teams {
@@ -133,7 +133,20 @@ type WorkflowState struct {
 	Name string `json:"name"`
 }
 
+type LinearClient struct {
+	token string
+}
+
 func main() {
+	// initialize the linear client
+	if len(os.Args) < 2 {
+		log.Fatal("No auth token was provided.\nUsage: go run main.go <auth-token>")
+	}
+	authToken := os.Args[1]
+	lc := &LinearClient{
+		token: authToken,
+	}
+
 	pagination := "first:50"
 	var totalIssues int
 
@@ -146,7 +159,7 @@ func main() {
 		query := fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678", pagination)
 
 		var response TeamIssuesResponse
-		if err := exectueQuery(query, &response); err != nil {
+		if err := lc.exectueQuery(query, &response); err != nil {
 			log.Fatal(err)
 		}
 
@@ -176,12 +189,12 @@ func main() {
 
 }
 
-func exectueQuery(query string, response interface{}) error {
+func (l *LinearClient) exectueQuery(query string, response interface{}) error {
 	graphqlClient := graphql.NewClient("https://api.linear.app/graphql")
 	graphqlRequest := graphql.NewRequest(query)
 
 	headers := make(map[string][]string)
-	headers["Authorization"] = []string{authToken}
+	headers["Authorization"] = []string{l.token}
 	graphqlRequest.Header = headers
 
 	if err := graphqlClient.Run(context.Background(), graphqlRequest, &response); err != nil {
