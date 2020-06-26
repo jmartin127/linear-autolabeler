@@ -23,6 +23,7 @@ const (
 		}
 	  }
 	`
+
 	issuesQuery = `{
 		team(id: "%s") {
 		  id
@@ -42,6 +43,9 @@ const (
 					state {
 						id
 						name
+					}
+					team {
+						key
 					}
 					history {
 						nodes {
@@ -65,6 +69,20 @@ const (
 		}
 	  }`
 
+	issueCommentsQuery = `{
+		issue(id: "%s") {
+		  id
+		  title
+		  description
+		  comments {
+			nodes {
+			  createdAt
+			  body
+			}
+		  }
+		}
+	  }`
+
 	workflowStatesQuery = `{
 		workflowStates {
 		  nodes{
@@ -83,6 +101,10 @@ type Team struct {
 	Issues Issues `json:"issues"`
 }
 
+type TeamName struct {
+	Key string `json:"key"`
+}
+
 type Issues struct {
 	TotalCount int      `json:"totalCount"`
 	Edges      []Edge   `json:"edges"`
@@ -99,14 +121,20 @@ type PageInfo struct {
 	EndCursor   string `json:"endCursor"`
 }
 
+type IssueResponse struct {
+	Issue IssueNode `json:"issue"`
+}
+
 type IssueNode struct {
-	ID           string       `json:"id"`
-	Number       int          `json:"number"`
-	CreatedAt    time.Time    `json:"createdAt"`
-	Title        string       `json:"title"`
-	Assignee     Assignee     `json:"assignee"`
-	State        State        `json:"state"`
-	IssueHistory IssueHistory `json:"history"`
+	ID            string        `json:"id"`
+	Number        int           `json:"number"`
+	CreatedAt     time.Time     `json:"createdAt"`
+	Title         string        `json:"title"`
+	Assignee      Assignee      `json:"assignee"`
+	State         State         `json:"state"`
+	TeamName      TeamName      `json:"team"`
+	IssueHistory  IssueHistory  `json:"history"`
+	IssueComments IssueComments `json:"comments"`
 }
 
 type Assignee struct {
@@ -123,10 +151,19 @@ type IssueHistory struct {
 	Nodes []IssueHistoryNode `json:"nodes"`
 }
 
+type IssueComments struct {
+	Nodes []IssueCommentNode `json:"nodes"`
+}
+
 type IssueHistoryNode struct {
 	CreatedAt time.Time     `json:"createdAt"`
 	FromState WorkflowState `json:"fromState"`
 	ToState   WorkflowState `json:"toState"`
+}
+
+type IssueCommentNode struct {
+	CreatedAt time.Time `json:"createdAt"`
+	Body      string    `json:"body"`
 }
 
 type WorkflowState struct {
@@ -147,6 +184,8 @@ func main() {
 		token: authToken,
 	}
 
+	lc.getIssueComments("ISC-105")
+
 	pagination := "first:50"
 	var totalIssues int
 
@@ -166,7 +205,11 @@ func main() {
 		for _, v := range response.Team.Issues.Edges {
 			exceeds, durationExceeding := exceedsSLA(&v.IssueNode, loc)
 			if exceeds {
-				fmt.Printf("Exceeds SLA: %+v, Ticket: %d, State: %s\n", durationExceeding, v.IssueNode.Number, v.IssueNode.State.Name)
+				lastComment, err := lc.getLastTimeIssueWasCommentedOn(&v.IssueNode)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Printf("Exceeds SLA: %+v, Ticket: %d, State: %s, TeamKey: %s, LastComment: %+v\n", durationExceeding, v.IssueNode.Number, v.IssueNode.State.Name, v.IssueNode.TeamName.Key, lastComment)
 			}
 			totalIssues++
 		}
@@ -189,12 +232,12 @@ func main() {
 
 }
 
-func (l *LinearClient) exectueQuery(query string, response interface{}) error {
+func (lc *LinearClient) exectueQuery(query string, response interface{}) error {
 	graphqlClient := graphql.NewClient("https://api.linear.app/graphql")
 	graphqlRequest := graphql.NewRequest(query)
 
 	headers := make(map[string][]string)
-	headers["Authorization"] = []string{l.token}
+	headers["Authorization"] = []string{lc.token}
 	graphqlRequest.Header = headers
 
 	if err := graphqlClient.Run(context.Background(), graphqlRequest, &response); err != nil {
@@ -233,6 +276,34 @@ func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, refState st
 	}
 
 	return false, time.Hour
+}
+
+func (lc *LinearClient) getLastTimeIssueWasCommentedOn(issue *IssueNode) (time.Time, error) {
+	ticketNumber := fmt.Sprintf("%s-%d", issue.TeamName.Key, issue.Number)
+	comments, err := lc.getIssueComments(ticketNumber)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	lastCommentTime := time.Time{}
+	for _, c := range comments {
+		if lastCommentTime.IsZero() || c.CreatedAt.After(lastCommentTime) {
+			lastCommentTime = c.CreatedAt
+		}
+	}
+
+	return lastCommentTime, nil
+}
+
+func (lc *LinearClient) getIssueComments(ticketNumber string) ([]IssueCommentNode, error) {
+	query := fmt.Sprintf(issueCommentsQuery, ticketNumber)
+
+	var response IssueResponse
+	if err := lc.exectueQuery(query, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Issue.IssueComments.Nodes, nil
 }
 
 func getTimeIssueEnteredCurrentState(issue *IssueNode) time.Time {
