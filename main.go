@@ -283,11 +283,7 @@ func main() {
 			exceeds, durationExceeding := lc.exceedsSLA(&v.IssueNode, loc)
 			ticketNumber := ticketNumber(&v.IssueNode)
 			if exceeds {
-				lastComment, err := lc.getLastTimeIssueWasCommentedOn(&v.IssueNode)
-				if err != nil {
-					log.Fatal(err)
-				}
-				fmt.Printf("Exceeds SLA: %+v, Ticket: %s, State: %s, LastComment: %+v\n", durationExceeding, ticketNumber, v.IssueNode.State.Name, lastComment)
+				fmt.Printf("Exceeds SLA: %+v, Ticket: %s, State: %s\n", durationExceeding, ticketNumber, v.IssueNode.State.Name)
 				if err := lc.addLabelToTicket(ticketNumber, exceedsSLALabelID); err != nil {
 					log.Fatal(err)
 				}
@@ -446,6 +442,8 @@ func (lc *LinearClient) exceedsSLA(issue *IssueNode, loc *time.Location) (bool, 
 		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
 	} else if issue.State.Name == "In Progress" {
 		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
+	} else if issue.State.Name == "Verify" {
+		return exceedsSLAInBusinessHours(issue, loc, "Verify", 8)
 	} else if issue.State.Name == "Additional Info Required" {
 		exceedsSLA, _ := exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", 16)
 		if exceedsSLA {
