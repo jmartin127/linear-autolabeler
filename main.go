@@ -242,6 +242,7 @@ type LinearClient struct {
 	token string
 }
 
+// TODO: Get this running within a Docker container
 func main() {
 	// initialize the linear client
 	if len(os.Args) < 2 {
@@ -280,6 +281,10 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
+			if v.IssueNode.State.Name == "Done" || v.IssueNode.State.Name == "Canceled" {
+				continue
+			}
+
 			exceeds, durationExceeding := lc.exceedsSLA(&v.IssueNode, loc)
 			ticketNumber := ticketNumber(&v.IssueNode)
 			if exceeds {
