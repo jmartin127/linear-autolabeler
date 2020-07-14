@@ -449,6 +449,8 @@ func (lc *LinearClient) exceedsSLA(issue *IssueNode, loc *time.Location) (bool, 
 		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
 	} else if issue.State.Name == "Verify" {
 		return exceedsSLAInBusinessHours(issue, loc, "Verify", 8)
+	} else if issue.State.Name == "Waiting on Partner" {
+		return exceedsSLAInBusinessHours(issue, loc, "Waiting on Partner", 80)
 	} else if issue.State.Name == "Additional Info Required" {
 		exceedsSLA, _ := exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", 16)
 		if exceedsSLA {
