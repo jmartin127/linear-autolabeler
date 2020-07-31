@@ -288,9 +288,12 @@ func main() {
 			exceeds, durationExceeding := lc.exceedsSLA(&v.IssueNode, loc)
 			ticketNumber := ticketNumber(&v.IssueNode)
 			if exceeds {
-				fmt.Printf("Exceeds SLA: %+v, Ticket: %s, State: %s\n", durationExceeding, ticketNumber, v.IssueNode.State.Name)
-				if err := lc.addLabelToTicket(ticketNumber, exceedsSLALabelID); err != nil {
+				addedLabel, err := lc.addLabelToTicket(ticketNumber, exceedsSLALabelID)
+				if err != nil {
 					log.Fatal(err)
+				}
+				if addedLabel {
+					fmt.Printf("Exceeds SLA: %+v, Ticket: %s, State: %s. Added label\n", durationExceeding, ticketNumber, v.IssueNode.State.Name)
 				}
 			} else {
 				if err := lc.removeLabelFromTicket(ticketNumber, exceedsSLALabelID); err != nil {
@@ -338,11 +341,11 @@ func (lc *LinearClient) getTeamLabels(teamID string) ([]IssueLabelNode, error) {
 	return response.TeamLabels.IssueLabels.Nodes, nil
 }
 
-func (lc *LinearClient) addLabelToTicket(ticketNumber string, labelID string) error {
+func (lc *LinearClient) addLabelToTicket(ticketNumber string, labelID string) (bool, error) {
 	// get current set of labels
 	labels, err := lc.getLabels(ticketNumber)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// get the labelIDs from the labels
@@ -351,8 +354,7 @@ func (lc *LinearClient) addLabelToTicket(ticketNumber string, labelID string) er
 
 		// if this label already exists, do not add it again
 		if l.ID == labelID {
-			fmt.Printf("\tlabel already exists for ticket %s\n", ticketNumber)
-			return nil
+			return false, nil
 		}
 		labelIDs = append(labelIDs, l.ID)
 	}
@@ -362,7 +364,11 @@ func (lc *LinearClient) addLabelToTicket(ticketNumber string, labelID string) er
 
 	// apply the labels
 	fmt.Printf("Adding label to ticket: %s\n", ticketNumber)
-	return lc.applyLabels(ticketNumber, labelIDs)
+	if err := lc.applyLabels(ticketNumber, labelIDs); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (lc *LinearClient) removeLabelFromTicket(ticketNumber string, labelID string) error {
