@@ -294,6 +294,7 @@ func main() {
 				}
 				if addedLabel {
 					fmt.Printf("Exceeds SLA: %+v, Ticket: %s, State: %s. Added label\n", durationExceeding, ticketNumber, v.IssueNode.State.Name)
+					// TODO add a comment to the ticket as well
 				}
 			} else {
 				if err := lc.removeLabelFromTicket(ticketNumber, exceedsSLALabelID); err != nil {
