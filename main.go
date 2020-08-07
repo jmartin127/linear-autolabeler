@@ -10,6 +10,14 @@ import (
 	"github.com/jmartin127/linear-autolabeler/sla"
 )
 
+var issueStatesToIgnore = [...]string{"Done", "Canceled"}
+
+const (
+	pageSize = 50
+	teamID   = "99dea3d2-59ff-4273-b8a1-379d36bb1678"
+	timeZone = "America/Denver"
+)
+
 func main() {
 	// initialize the linear client
 	if len(os.Args) < 2 {
@@ -22,24 +30,20 @@ func main() {
 
 	slaClient := sla.NewSLA(lc)
 
-	// TODO load the Team ID, given the team name
-	teamID := "99dea3d2-59ff-4273-b8a1-379d36bb1678"
-
 	// find the "ExceedsSLA" label
 	exceedsSLALabelID, err := lc.FindLabelIDWithName(teamID, "ExceedsSLA")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	pagination := "first:50"
-	var totalIssues int
-
-	// TODO the timezone should be configurable
-	loc, err := time.LoadLocation("America/Denver")
+	// TODO create a config object
+	loc, err := time.LoadLocation(timeZone)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	var totalIssues int
+	pagination := fmt.Sprintf("first:%d", pageSize)
 	for true {
 		response, err := lc.GetIssuesForTeam(teamID, pagination)
 		if err != nil {
@@ -47,7 +51,7 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
-			if v.IssueNode.State.Name == "Done" || v.IssueNode.State.Name == "Canceled" {
+			if shouldIgnoreState(v.IssueNode.State.Name) {
 				continue
 			}
 
@@ -74,11 +78,21 @@ func main() {
 		}
 
 		// pagination
-		pagination = fmt.Sprintf(`first:50 after:"%s"`, response.Team.Issues.PageInfo.EndCursor)
+		pagination = fmt.Sprintf(`first:%d after:"%s"`, pageSize, response.Team.Issues.PageInfo.EndCursor)
 		if response.Team.Issues.PageInfo.HasNextPage == false {
 			break
 		}
 	}
 
 	fmt.Printf("Total issues: %d\n", totalIssues)
+}
+
+func shouldIgnoreState(state string) bool {
+	for _, ignoredState := range issueStatesToIgnore {
+		if state == ignoredState {
+			return true
+		}
+	}
+
+	return false
 }
