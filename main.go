@@ -257,7 +257,6 @@ type LinearClient struct {
 	token string
 }
 
-// TODO: Get this running within a Docker container
 func main() {
 	// initialize the linear client
 	if len(os.Args) < 2 {
