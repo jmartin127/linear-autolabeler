@@ -320,9 +320,8 @@ func main() {
 			totalIssues++
 		}
 
+		// pagination
 		pagination = fmt.Sprintf(`first:50 after:"%s"`, response.Team.Issues.PageInfo.EndCursor)
-		query = fmt.Sprintf(issuesQuery, teamID, pagination)
-
 		if response.Team.Issues.PageInfo.HasNextPage == false {
 			break
 		}
