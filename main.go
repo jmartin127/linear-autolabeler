@@ -401,8 +401,11 @@ func (lc *LinearClient) removeLabelFromTicket(ticketNumber string, labelID strin
 }
 
 func (lc *LinearClient) applyLabels(ticketNumber string, labelIDs []string) error {
-	labelIDsString := strings.Join(labelIDs, `", "`)
-	labelIDsString = fmt.Sprintf(`"%s"`, labelIDsString) // need this format: "id1", "id2", "id3"
+	var labelIDsString string
+	if len(labelIDs) > 0 {
+		labelIDsString = strings.Join(labelIDs, `", "`)
+		labelIDsString = fmt.Sprintf(`"%s"`, labelIDsString) // need this format: "id1", "id2", "id3"
+	}
 	mutation := fmt.Sprintf(addIssueLabelMutation, ticketNumber, labelIDsString)
 
 	var response IssueUpdateResponse
