@@ -40,7 +40,7 @@ job:
         longerThan: 16h
     action:
       label: "ExceedsSLA"
-      comment: "Damg gina! It is taking a long time to gather the additional information, exceeds the SLA by ${slaExceeding}! Please gather the required information, or comment on the ticket saying you have contacted the office. FYI, the SLA is ${sla} (in business hours)."
+      comment: "Dang gina! It is taking a long time to gather the additional information, exceeds the SLA by ${slaExceeding}! Please gather the required information, or comment on the ticket saying you have contacted the office. FYI, the SLA is ${sla} (in business hours)."
 
 ```
 
