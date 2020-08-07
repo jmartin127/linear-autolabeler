@@ -306,7 +306,7 @@ func main() {
 					log.Fatal(err)
 				}
 				if addedLabel {
-					comment := fmt.Sprintf("Uh oh! This ticket is in the %s state, and exceeds SLA by %s! FYI, the SLA is %+v (in business hours).", v.IssueNode.State.Name, durationExceeding, sla)
+					comment := fmt.Sprintf("Uh oh!  This ticket is in the %s state, and exceeds the SLA by %s!  FYI, the SLA is %+v (in business hours).", v.IssueNode.State.Name, durationExceeding, sla)
 					log.Printf("Ticket: %s, Adding Comment: %s\n", ticketNumber, comment)
 					if err := lc.addCommentToTicket(v.IssueNode.ID, comment); err != nil {
 						log.Fatal(err)
