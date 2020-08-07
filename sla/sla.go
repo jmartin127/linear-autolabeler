@@ -26,7 +26,7 @@ type SLA struct {
 	loc *time.Location
 }
 
-func (s *SLA) ExceedsSLA(issue *linear.IssueNode) (bool, time.Duration, time.Duration) error {
+func (s *SLA) ExceedsSLA(issue *linear.IssueNode) (bool, time.Duration, time.Duration) {
 	if issue.State.Name == "Ready for Review" {
 		return exceedsSLAInBusinessHours(issue, s.loc, "Ready for Review", time.Hour*time.Duration(8))
 	} else if issue.State.Name == "Accepted" {

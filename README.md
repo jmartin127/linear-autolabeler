@@ -4,6 +4,46 @@
 
 This project is currently a work in progress.  But it is now being used as a cron job on my local.  Will get this running in Kubernetes soon.
 
+## Configuration Example
+
+```yaml
+team: "Integrations-Cases"
+timeZone: "America/Denver"
+ignoreIssueStates:
+  - "Done"
+  - "Canceled"
+pageSize: 50
+job:
+  - name: "SLA: Taking too long to Verify the requested work was completed"
+    filter:
+      - type: SLA
+        currentState: "Verify"
+        longerThan: 8h
+    action:
+      label: "ExceedsSLA"
+      comment: "Uh oh! This ticket is in the Verify state, and exceeds the SLA by ${slaExceeding}! FYI, the SLA is ${sla} (in business hours). Please verify that the work you requested has been completed, and close the ticket"
+  - name: "SLA: Taking too long to complete tickets that are currently in progress"
+    filter:
+      - type: SLA
+        currentState: "In Progress"
+        enteredState: "Accepted"
+        longerThan: 16h
+    action:
+      label: "ExceedsSLA"
+      comment: "Eek! This ticket is in progress, but it exceeds the SLA by ${slaExceeding}! Let's get 'er caught up. FYI, the SLA is ${sla} (in business hours)."
+  - name: "SLA: Taking too long to gather additional information needed in order to complete a ticket"
+    filter:
+      - type: SLA
+        currentState: "Additional Info Required"
+        longerThan: 16h
+      - type: LastComment
+        longerThan: 16h
+    action:
+      label: "ExceedsSLA"
+      comment: "Eek! This ticket is in progress, but it exceeds the SLA by ${slaExceeding}! Let's get 'er caught up. FYI, the SLA is ${sla} (in business hours)."
+
+```
+
 ## References
 
 * Linear API:
