@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/jmartin127/linear-autolabeler/linear"
 	"github.com/jmartin127/linear-autolabeler/sla"
 )
 
+// TODO: Put all of the constants into a config object
 var issueStatesToIgnore = [...]string{"Done", "Canceled"}
 
 const (
 	pageSize = 50
-	teamID   = "99dea3d2-59ff-4273-b8a1-379d36bb1678"
+	teamID   = "99dea3d2-59ff-4273-b8a1-379d36bb1678" // TODO load the team ID from the team name
 	timeZone = "America/Denver"
 )
 
@@ -28,16 +28,14 @@ func main() {
 		Token: authToken,
 	}
 
-	slaClient := sla.NewSLA(lc)
-
-	// find the "ExceedsSLA" label
-	exceedsSLALabelID, err := lc.FindLabelIDWithName(teamID, "ExceedsSLA")
+	// initialize the SLA client
+	slaClient, err := sla.NewSLA(lc, timeZone)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// TODO create a config object
-	loc, err := time.LoadLocation(timeZone)
+	// find the "ExceedsSLA" label
+	exceedsSLALabelID, err := lc.FindLabelIDWithName(teamID, "ExceedsSLA")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,7 +53,7 @@ func main() {
 				continue
 			}
 
-			exceeds, durationExceeding, sla := slaClient.ExceedsSLA(&v.IssueNode, loc)
+			exceeds, durationExceeding, sla := slaClient.ExceedsSLA(&v.IssueNode)
 			ticketNumber := linear.TicketNumber(&v.IssueNode)
 			if exceeds {
 				addedLabel, err := lc.AddLabelToTicket(ticketNumber, exceedsSLALabelID)
