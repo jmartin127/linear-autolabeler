@@ -286,8 +286,7 @@ func main() {
 	}
 
 	for true {
-		// TODO the Team ID should be configurable
-		query := fmt.Sprintf(issuesQuery, "99dea3d2-59ff-4273-b8a1-379d36bb1678", pagination)
+		query := fmt.Sprintf(issuesQuery, teamID, pagination)
 
 		var response TeamIssuesResponse
 		if err := lc.exectueQuery(query, &response); err != nil {
