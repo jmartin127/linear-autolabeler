@@ -242,10 +242,14 @@ type WorkflowState struct {
 }
 
 type IssueUpdateResponse struct {
-	IssueUpdate IssueUpdate `json:"issueUpdate"`
+	IssueUpdate SuccessResponse `json:"issueUpdate"`
 }
 
-type IssueUpdate struct {
+type CommentCreateResponse struct {
+	CommentCreate SuccessResponse `json:"commentCreate"`
+}
+
+type SuccessResponse struct {
 	Success bool `json:"success"`
 }
 
@@ -266,16 +270,6 @@ func main() {
 
 	// TODO load the Team ID, given the team name
 	teamID := "99dea3d2-59ff-4273-b8a1-379d36bb1678"
-
-	tmp := time.Second * time.Duration(38294)
-	sla := time.Hour * time.Duration(16)
-	comment := fmt.Sprintf("Uh oh! This ticket is in the %s state, and exceeds SLA by %s! FYI, the SLA is %+v (in business hours).", "In Progress", tmp, sla)
-	comment = "test"
-	if err := lc.addCommentToTicket("a64a45c9-57c8-4af4-9a6e-f5ea1cd524de", comment); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("Ticket: %s, Comment %s\n", "ISC-118", comment)
-	log.Fatal("duh")
 
 	// find the "ExceedsSLA" label
 	exceedsSLALabelID, err := lc.findLabelIDWithName(teamID, "ExceedsSLA")
@@ -315,10 +309,10 @@ func main() {
 				}
 				if addedLabel {
 					comment := fmt.Sprintf("Uh oh! This ticket is in the %s state, and exceeds SLA by %s! FYI, the SLA is %+v (in business hours).", v.IssueNode.State.Name, durationExceeding, sla)
-					if err := lc.addCommentToTicket(ticketNumber, comment); err != nil {
+					log.Printf("Ticket: %s, Adding Comment: %s\n", ticketNumber, comment)
+					if err := lc.addCommentToTicket(v.IssueNode.ID, comment); err != nil {
 						log.Fatal(err)
 					}
-					log.Printf("Ticket: %s, Comment %s\n", ticketNumber, comment)
 				}
 			} else {
 				if err := lc.removeLabelFromTicket(ticketNumber, exceedsSLALabelID); err != nil {
@@ -396,18 +390,17 @@ func (lc *LinearClient) addLabelToTicket(ticketNumber string, labelID string) (b
 	return true, nil
 }
 
-func (lc *LinearClient) addCommentToTicket(ticketNumber string, comment string) error {
-	mutation := fmt.Sprintf(addIssueCommentMutation, ticketNumber, comment)
-	fmt.Printf("MUTATION:\n%s\n", mutation)
+func (lc *LinearClient) addCommentToTicket(ticketID string, comment string) error {
+	mutation := fmt.Sprintf(addIssueCommentMutation, ticketID, comment)
 
-	var response IssueUpdateResponse
+	var response CommentCreateResponse
 	err := lc.exectueQuery(mutation, &response)
 	if err != nil {
 		return err
 	}
 
-	if !response.IssueUpdate.Success {
-		return fmt.Errorf("Adding comment did not succeed for ticket %s", ticketNumber)
+	if !response.CommentCreate.Success {
+		return fmt.Errorf("Adding comment did not succeed for ticket with ID %s", ticketID)
 	}
 
 	return nil
