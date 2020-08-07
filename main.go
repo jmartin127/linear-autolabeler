@@ -120,6 +120,17 @@ const (
 		}
 	  }`
 
+	addIssueCommentMutation = `mutation {
+  commentCreate(
+    input: {
+      issueId: "%s"
+      body: "%s"
+    }
+  ) {
+    success
+  }
+}`
+
 	labelsQuery = `{
 		team(id: "%s") {
 			id
@@ -256,6 +267,16 @@ func main() {
 	// TODO load the Team ID, given the team name
 	teamID := "99dea3d2-59ff-4273-b8a1-379d36bb1678"
 
+	tmp := time.Second * time.Duration(38294)
+	sla := time.Hour * time.Duration(16)
+	comment := fmt.Sprintf("Uh oh! This ticket is in the %s state, and exceeds SLA by %s! FYI, the SLA is %+v (in business hours).", "In Progress", tmp, sla)
+	comment = "test"
+	if err := lc.addCommentToTicket("a64a45c9-57c8-4af4-9a6e-f5ea1cd524de", comment); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Ticket: %s, Comment %s\n", "ISC-118", comment)
+	log.Fatal("duh")
+
 	// find the "ExceedsSLA" label
 	exceedsSLALabelID, err := lc.findLabelIDWithName(teamID, "ExceedsSLA")
 	if err != nil {
@@ -285,7 +306,7 @@ func main() {
 				continue
 			}
 
-			exceeds, durationExceeding := lc.exceedsSLA(&v.IssueNode, loc)
+			exceeds, durationExceeding, sla := lc.exceedsSLA(&v.IssueNode, loc)
 			ticketNumber := ticketNumber(&v.IssueNode)
 			if exceeds {
 				addedLabel, err := lc.addLabelToTicket(ticketNumber, exceedsSLALabelID)
@@ -293,8 +314,11 @@ func main() {
 					log.Fatal(err)
 				}
 				if addedLabel {
-					fmt.Printf("Exceeds SLA: %+v, Ticket: %s, State: %s. Added label\n", durationExceeding, ticketNumber, v.IssueNode.State.Name)
-					// TODO add a comment to the ticket as well
+					comment := fmt.Sprintf("Uh oh! This ticket is in the %s state, and exceeds SLA by %s! FYI, the SLA is %+v (in business hours).", v.IssueNode.State.Name, durationExceeding, sla)
+					if err := lc.addCommentToTicket(ticketNumber, comment); err != nil {
+						log.Fatal(err)
+					}
+					log.Printf("Ticket: %s, Comment %s\n", ticketNumber, comment)
 				}
 			} else {
 				if err := lc.removeLabelFromTicket(ticketNumber, exceedsSLALabelID); err != nil {
@@ -372,6 +396,23 @@ func (lc *LinearClient) addLabelToTicket(ticketNumber string, labelID string) (b
 	return true, nil
 }
 
+func (lc *LinearClient) addCommentToTicket(ticketNumber string, comment string) error {
+	mutation := fmt.Sprintf(addIssueCommentMutation, ticketNumber, comment)
+	fmt.Printf("MUTATION:\n%s\n", mutation)
+
+	var response IssueUpdateResponse
+	err := lc.exectueQuery(mutation, &response)
+	if err != nil {
+		return err
+	}
+
+	if !response.IssueUpdate.Success {
+		return fmt.Errorf("Adding comment did not succeed for ticket %s", ticketNumber)
+	}
+
+	return nil
+}
+
 func (lc *LinearClient) removeLabelFromTicket(ticketNumber string, labelID string) error {
 	// get current set of labels
 	labels, err := lc.getLabels(ticketNumber)
@@ -446,55 +487,53 @@ func (lc *LinearClient) exectueQuery(query string, response interface{}) error {
 	return nil
 }
 
-func (lc *LinearClient) exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration) {
-
+func (lc *LinearClient) exceedsSLA(issue *IssueNode, loc *time.Location) (bool, time.Duration, time.Duration) {
 	if issue.State.Name == "Ready for Review" {
-		return exceedsSLAInBusinessHours(issue, loc, "Ready for Review", 8)
+		return exceedsSLAInBusinessHours(issue, loc, "Ready for Review", time.Hour*time.Duration(8))
 	} else if issue.State.Name == "Accepted" {
-		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
+		return exceedsSLAInBusinessHours(issue, loc, "Accepted", time.Hour*time.Duration(16))
 	} else if issue.State.Name == "In Progress" {
-		return exceedsSLAInBusinessHours(issue, loc, "Accepted", 16)
+		return exceedsSLAInBusinessHours(issue, loc, "Accepted", time.Hour*time.Duration(16))
 	} else if issue.State.Name == "Verify" {
-		return exceedsSLAInBusinessHours(issue, loc, "Verify", 8)
+		return exceedsSLAInBusinessHours(issue, loc, "Verify", time.Hour*time.Duration(8))
 	} else if issue.State.Name == "Waiting on Partner" {
-		return exceedsSLAInBusinessHours(issue, loc, "Waiting on Partner", 80)
+		return exceedsSLAInBusinessHours(issue, loc, "Waiting on Partner", time.Hour*time.Duration(80))
 	} else if issue.State.Name == "Additional Info Required" {
-		exceedsSLA, _ := exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", 16)
+		exceedsSLA, _, _ := exceedsSLAInBusinessHours(issue, loc, "Additional Info Required", time.Hour*time.Duration(16))
 		if exceedsSLA {
 			lastCommentTime, err := lc.getLastTimeIssueWasCommentedOn(issue)
 			if err != nil {
 				log.Fatal(err) // TODO
 			}
-			exceedsSLAForCommentToBeAdded, timeOverdueForComment := exceedsSLAInBusinessHoursForStart(lastCommentTime, loc, 16)
+			exceedsSLAForCommentToBeAdded, timeOverdueForComment, sla := exceedsSLAInBusinessHoursForStart(lastCommentTime, loc, time.Hour*time.Duration(16))
 			if exceedsSLAForCommentToBeAdded {
-				return exceedsSLAForCommentToBeAdded, timeOverdueForComment
+				return exceedsSLAForCommentToBeAdded, timeOverdueForComment, sla
 			}
-			return false, time.Hour
+			return false, time.Hour, time.Hour
 		}
-		return false, time.Hour
+		return false, time.Hour, time.Hour
 	}
 
-	return false, time.Hour
+	return false, time.Hour, time.Hour
 }
 
-func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, refState string, slaBusinessHours int) (bool, time.Duration) {
+func exceedsSLAInBusinessHours(issue *IssueNode, loc *time.Location, refState string, sla time.Duration) (bool, time.Duration, time.Duration) {
 	timeEnteredCurrentState := getLastTimeIssueEnteredState(issue, refState)
-	return exceedsSLAInBusinessHoursForStart(timeEnteredCurrentState, loc, slaBusinessHours)
+	return exceedsSLAInBusinessHoursForStart(timeEnteredCurrentState, loc, sla)
 }
 
-func exceedsSLAInBusinessHoursForStart(refTime time.Time, loc *time.Location, slaBusinessHours int) (bool, time.Duration) {
+func exceedsSLAInBusinessHoursForStart(refTime time.Time, loc *time.Location, sla time.Duration) (bool, time.Duration, time.Duration) {
 	start := refTime.In(loc)
 	end := time.Now().In(loc)
 	durationInCurrentStateBusinessHours := businessDurationBetweenTimes(start, end)
 
-	slaDuration := time.Hour * time.Duration(slaBusinessHours)
-	if durationInCurrentStateBusinessHours > slaDuration {
+	if durationInCurrentStateBusinessHours > sla {
 		// determine how much the SLA is exceeded
-		exceedsSLABySeconds := durationInCurrentStateBusinessHours.Seconds() - slaDuration.Seconds()
-		return true, (time.Second * time.Duration(exceedsSLABySeconds))
+		exceedsSLABySeconds := durationInCurrentStateBusinessHours.Seconds() - sla.Seconds()
+		return true, (time.Second * time.Duration(exceedsSLABySeconds)), sla
 	}
 
-	return false, time.Hour
+	return false, time.Hour, time.Hour
 }
 
 func ticketNumber(issue *IssueNode) string {
