@@ -60,6 +60,11 @@ type Assignee struct {
 	Name string `json:"name"`
 }
 
+type User struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type State struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -86,6 +91,7 @@ type IssueHistoryNode struct {
 type IssueCommentNode struct {
 	CreatedAt time.Time `json:"createdAt"`
 	Body      string    `json:"body"`
+	User      User      `json:"user"`
 }
 
 type IssueLabelNode struct {

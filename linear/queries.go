@@ -66,6 +66,10 @@ const (
 				nodes {
 					createdAt
 					body
+					user {
+						id
+						name
+					}
 				}
 			}
 		}

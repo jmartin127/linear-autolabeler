@@ -117,7 +117,7 @@ func TicketNumber(issue *IssueNode) string {
 	return fmt.Sprintf("%s-%d", issue.TeamName.Key, issue.Number)
 }
 
-func (lc *LinearClient) GetLastTimeIssueWasCommentedOn(issue *IssueNode) (time.Time, error) {
+func (lc *LinearClient) GetLastTimeIssueWasCommentedOn(issue *IssueNode, ignoreCommentsByUserWithName string) (time.Time, error) {
 	ticketNumber := TicketNumber(issue)
 	comments, err := lc.getIssueComments(ticketNumber)
 	if err != nil {
@@ -126,6 +126,11 @@ func (lc *LinearClient) GetLastTimeIssueWasCommentedOn(issue *IssueNode) (time.T
 
 	lastCommentTime := time.Time{}
 	for _, c := range comments {
+		// We want to ignore comments made by the auto-labeler itself, so that we do not use that as part of the criteria when determining the last time a comment was made
+		if c.User.Name == ignoreCommentsByUserWithName {
+			continue
+		}
+
 		if lastCommentTime.IsZero() || c.CreatedAt.After(lastCommentTime) {
 			lastCommentTime = c.CreatedAt
 		}

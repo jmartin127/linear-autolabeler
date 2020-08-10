@@ -9,6 +9,9 @@ import (
 	"github.com/rickar/cal/v2/us"
 )
 
+// TODO should be able to get the user ID from the developer token and just ignore comments from that user ID
+const ignoreCommentsByUserWithName = "Jeff Martin"
+
 func NewSLA(lc *linear.LinearClient, timeZone string) (*SLA, error) {
 	loc, err := time.LoadLocation(timeZone)
 	if err != nil {
@@ -40,7 +43,7 @@ func (s *SLA) ExceedsSLA(issue *linear.IssueNode) (bool, time.Duration, time.Dur
 	} else if issue.State.Name == "Additional Info Required" {
 		exceedsSLA, _, _ := exceedsSLAInBusinessHours(issue, s.loc, "Additional Info Required", time.Hour*time.Duration(16))
 		if exceedsSLA {
-			lastCommentTime, err := s.lc.GetLastTimeIssueWasCommentedOn(issue)
+			lastCommentTime, err := s.lc.GetLastTimeIssueWasCommentedOn(issue, ignoreCommentsByUserWithName)
 			if err != nil {
 				log.Fatal(err) // TODO fix this once this is refactored to be dynamic
 			}
