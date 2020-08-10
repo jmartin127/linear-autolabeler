@@ -2,7 +2,7 @@
 
 ## WIP
 
-This project is currently a work in progress.  But it is now being used as a cron job on my local.  Will get this running in Kubernetes soon.
+This project is currently a work in progress.  But it is now running within Docker, and executed on a schedule as a cron job on my local.  Will get this running in Kubernetes soon.
 
 ## Configuration Example
 
