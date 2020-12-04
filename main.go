@@ -19,6 +19,8 @@ const (
 )
 
 func main() {
+	fmt.Println("Starting...")
+
 	// initialize the linear client
 	if len(os.Args) < 2 {
 		log.Fatal("No auth token was provided.\nUsage: go run main.go <auth-token>")
@@ -35,6 +37,7 @@ func main() {
 	}
 
 	// find the "ExceedsSLA" label
+	fmt.Println("Finding Exceeds SLA label...")
 	exceedsSLALabelID, err := lc.FindLabelIDWithName(teamID, "ExceedsSLA")
 	if err != nil {
 		log.Fatal(err)
@@ -43,6 +46,7 @@ func main() {
 	var totalIssues int
 	pagination := fmt.Sprintf("first:%d", pageSize)
 	for true {
+		fmt.Printf("Loading issues for team %s and page %s\n", teamID, pagination)
 		response, err := lc.GetIssuesForTeam(teamID, pagination)
 		if err != nil {
 			log.Fatal(err)
