@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jmartin127/linear-autolabeler/linear"
+	"github.com/jmartin127/linear-autolabeler/sla"
 )
 
 var token string
@@ -22,6 +23,34 @@ const (
 	teamID   = "99dea3d2-59ff-4273-b8a1-379d36bb1678" // TODO load the team ID from the team name
 )
 
+type metricsSummary struct {
+	totalTimeByState map[string]time.Duration
+	countByState     map[string]int
+}
+
+func newMetricsSummary() metricsSummary {
+	return metricsSummary{
+		totalTimeByState: make(map[string]time.Duration, 0),
+		countByState:     make(map[string]int, 0),
+	}
+}
+
+func (ms *metricsSummary) printResults() {
+	keys := make([]string, 0, len(ms.totalTimeByState))
+	for k := range ms.totalTimeByState {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, state := range keys {
+		totalTimeSpentHours := ms.totalTimeByState[state].Hours()
+		numTickets := ms.countByState[state]
+		avgTime := totalTimeSpentHours / float64(numTickets)
+
+		fmt.Printf("%s\t%f\t%d\t%f\n", state, totalTimeSpentHours, numTickets, avgTime)
+	}
+}
+
 func main() {
 	fmt.Println("Starting metrics gathering...")
 
@@ -34,7 +63,7 @@ func main() {
 
 	var totalIssues int
 	pagination := fmt.Sprintf("first:%d", pageSize)
-	summary := make(map[string]time.Duration, 0)
+	summary := newMetricsSummary()
 	for true {
 		fmt.Printf("Loading issues for team %s and page %s\n", teamID, pagination)
 		response, err := lc.GetIssuesForTeam(teamID, pagination)
@@ -43,11 +72,9 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
-			ticketNumber := linear.TicketNumber(&v.IssueNode)
 			if v.IssueNode.State.Name == "Done" {
-				fmt.Printf("Ticket %s. State %s\n", ticketNumber, v.IssueNode.State.Name)
 				issueMetrics := gatherMetricsFromIssue(&v.IssueNode)
-				summary = combineDurations(summary, issueMetrics)
+				summary = addResultToSummary(summary, issueMetrics)
 				totalIssues++
 			}
 		}
@@ -60,42 +87,21 @@ func main() {
 	}
 
 	fmt.Printf("Read %d issues\n", totalIssues)
-	printMap(summary)
+	summary.printResults()
 }
 
-func combineDurations(m1 map[string]time.Duration, m2 map[string]time.Duration) map[string]time.Duration {
-	result := make(map[string]time.Duration, 0)
-
-	for k, v := range m1 {
-		if _, ok := result[k]; !ok {
-			result[k] = v
+func addResultToSummary(summary metricsSummary, m map[string]time.Duration) metricsSummary {
+	for k, v := range m {
+		if _, ok := summary.totalTimeByState[k]; !ok {
+			summary.totalTimeByState[k] = v
+			summary.countByState[k] = 1
 		} else {
-			result[k] = result[k] + v
+			summary.totalTimeByState[k] = summary.totalTimeByState[k] + v
+			summary.countByState[k] = summary.countByState[k] + 1
 		}
 	}
 
-	for k, v := range m2 {
-		if _, ok := result[k]; !ok {
-			result[k] = v
-		} else {
-			result[k] = result[k] + v
-		}
-	}
-
-	return result
-}
-
-func printMap(m map[string]time.Duration) {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		v := m[k]
-		fmt.Printf("%s, %s\n", k, v.String())
-	}
+	return summary
 }
 
 /*
@@ -134,9 +140,8 @@ func gatherMetricsFromIssue(issue *linear.IssueNode) map[string]time.Duration {
 		stSecond := stateTransitions[i]
 		attributeToState := stSecond.FromState.Name
 
-		// TODO need to remove weekends and holidays!
-		diff := stSecond.CreatedAt.Sub(stFirst.CreatedAt)
-		//fmt.Printf("Diff: %s To State: %s\n", diff.String(), attributeToState)
+		// remove weekends/holidays
+		diff := sla.BusinessDurationBetweenTimes(stFirst.CreatedAt, stSecond.CreatedAt)
 
 		if _, ok := results[attributeToState]; !ok {
 			results[attributeToState] = diff

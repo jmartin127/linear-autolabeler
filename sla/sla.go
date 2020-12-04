@@ -67,7 +67,7 @@ func exceedsSLAInBusinessHours(issue *linear.IssueNode, loc *time.Location, refS
 func exceedsSLAInBusinessHoursForStart(refTime time.Time, loc *time.Location, sla time.Duration) (bool, time.Duration, time.Duration) {
 	start := refTime.In(loc)
 	end := time.Now().In(loc)
-	durationInCurrentStateBusinessHours := businessDurationBetweenTimes(start, end)
+	durationInCurrentStateBusinessHours := BusinessDurationBetweenTimes(start, end)
 
 	if durationInCurrentStateBusinessHours > sla {
 		// determine how much the SLA is exceeded
@@ -78,7 +78,7 @@ func exceedsSLAInBusinessHoursForStart(refTime time.Time, loc *time.Location, sl
 	return false, time.Hour, time.Hour
 }
 
-func businessDurationBetweenTimes(start, end time.Time) time.Duration {
+func BusinessDurationBetweenTimes(start, end time.Time) time.Duration {
 	c := cal.NewBusinessCalendar()
 
 	// add holidays that the business observes
