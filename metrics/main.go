@@ -23,6 +23,12 @@ const (
 	teamID   = "99dea3d2-59ff-4273-b8a1-379d36bb1678" // TODO load the team ID from the team name
 )
 
+type week struct {
+	start time.Time
+	end   time.Time
+	count int
+}
+
 type metricsSummary struct {
 	totalTimeByState map[string]time.Duration
 	countByState     map[string]int
@@ -66,6 +72,19 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Create bins for arregating ticket creation dates
+	layout := "2006-01-02T15:04:05.000Z"
+	start, err := time.Parse(layout, "2020-01-06T00:00:00.000Z")
+	if err != nil {
+		log.Fatal(err)
+	}
+	end, err := time.Parse(layout, "2020-12-25T00:00:00.000Z")
+	if err != nil {
+		log.Fatal(err)
+	}
+	numTicketsByWeek := createDateSlice(start, end)
+	fmt.Printf("Num weeks %d\n", len(numTicketsByWeek))
+
 	var totalIssues int
 	pagination := fmt.Sprintf("first:%d", pageSize)
 	summary := newMetricsSummary()
@@ -77,8 +96,10 @@ func main() {
 		}
 
 		for _, v := range response.Team.Issues.Edges {
-			if v.IssueNode.State.Name == "Done" {
+			// aggregate ticket creation dates
+			addCreationDateToAggregate(numTicketsByWeek, getIssueCreationDate(&v.IssueNode))
 
+			if v.IssueNode.State.Name == "Done" {
 				hasObTechLabel, err := lc.TicketHasLabel(linear.TicketNumber(&v.IssueNode), obTechLabelID)
 				if err != nil {
 					log.Fatal(err)
@@ -100,6 +121,34 @@ func main() {
 
 	fmt.Printf("Read %d issues\n", totalIssues)
 	summary.printResults()
+
+	fmt.Println("Num tickets by week")
+	for _, v := range numTicketsByWeek {
+		fmt.Printf("%+v\t%+v\t%d\n", v.start, v.end, v.count)
+	}
+}
+
+func createDateSlice(start, end time.Time) []*week {
+	result := make([]*week, 0)
+	for ct := start; ct.Before(end); ct = ct.AddDate(0, 0, 7) {
+		end := ct.AddDate(0, 0, 7)
+		newWeek := &week{
+			start: ct,
+			end:   end,
+		}
+		result = append(result, newWeek)
+	}
+	return result
+}
+
+func addCreationDateToAggregate(numTicketsByWeek []*week, creationDate time.Time) {
+	// find the bin
+	for _, v := range numTicketsByWeek {
+		if creationDate.After(v.start) && creationDate.Before(v.end) {
+			v.count = v.count + 1
+			return
+		}
+	}
 }
 
 func addResultToSummary(summary metricsSummary, m map[string]time.Duration) metricsSummary {
@@ -163,4 +212,8 @@ func gatherMetricsFromIssue(issue *linear.IssueNode) map[string]time.Duration {
 	}
 
 	return results
+}
+
+func getIssueCreationDate(issue *linear.IssueNode) time.Time {
+	return issue.CreatedAt
 }
