@@ -61,6 +61,11 @@ func main() {
 		Token: token,
 	}
 
+	obTechLabelID, err := lc.FindLabelIDWithName(teamID, "OB Techs")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	var totalIssues int
 	pagination := fmt.Sprintf("first:%d", pageSize)
 	summary := newMetricsSummary()
@@ -73,9 +78,16 @@ func main() {
 
 		for _, v := range response.Team.Issues.Edges {
 			if v.IssueNode.State.Name == "Done" {
-				issueMetrics := gatherMetricsFromIssue(&v.IssueNode)
-				summary = addResultToSummary(summary, issueMetrics)
-				totalIssues++
+
+				hasObTechLabel, err := lc.TicketHasLabel(linear.TicketNumber(&v.IssueNode), obTechLabelID)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if hasObTechLabel {
+					issueMetrics := gatherMetricsFromIssue(&v.IssueNode)
+					summary = addResultToSummary(summary, issueMetrics)
+					totalIssues++
+				}
 			}
 		}
 

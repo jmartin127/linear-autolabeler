@@ -166,6 +166,19 @@ func (lc *LinearClient) getLabels(ticketNumber string) ([]IssueLabelNode, error)
 	return response.Issue.IssueLabels.Nodes, nil
 }
 
+func (lc *LinearClient) TicketHasLabel(ticketNumber, labelID string) (bool, error) {
+	labels, err := lc.getLabels(ticketNumber)
+	if err != nil {
+		return false, err
+	}
+	for _, l := range labels {
+		if l.ID == labelID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (lc *LinearClient) exectueQuery(query string, response interface{}) error {
 	graphqlClient := graphql.NewClient("https://api.linear.app/graphql") // TODO only do this once in the client itself
 	graphqlRequest := graphql.NewRequest(query)
